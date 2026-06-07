@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
     QMenu, QCheckBox, QStyle, QSpinBox, QColorDialog, QPlainTextDocumentLayout, QToolTip
 )
 # In Qt6/PySide6, QAction and QShortcut live in QtGui (moved from QtWidgets in Qt5)
-from PySide6.QtGui import QKeySequence, QPainter, QFont, QFontDatabase, QTextCursor, QTextBlockFormat, QAction, QShortcut, QColor, QPalette, QGuiApplication, QTextDocument, QDesktopServices, QIcon, QFileOpenEvent
+from PySide6.QtGui import QKeySequence, QPainter, QFont, QFontDatabase, QTextCursor, QTextBlockFormat, QAction, QShortcut, QColor, QPalette, QGuiApplication, QTextDocument, QDesktopServices, QIcon, QFileOpenEvent, QPixmap
 from PySide6.QtCore import Qt, QRect, QFileInfo, QTimer, Signal, QUrl, QRectF, QPoint, QPointF, QEvent, QThread
 QT_LIB = "PySide6"
 
@@ -713,6 +713,40 @@ class ClickableLabel(QLabel):
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+
+class TamilKeyboardGuide(QLabel):
+    def __init__(self, image_path: Path, parent=None):
+        super().__init__(parent)
+        self._source_pixmap = QPixmap(str(image_path))
+        self.setAlignment(Qt.AlignCenter)
+        self.setMinimumHeight(80)
+        self.setMaximumHeight(220)
+        self.setStyleSheet("background: transparent;")
+        self.setVisible(not self._source_pixmap.isNull())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_scaled_pixmap()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._update_scaled_pixmap()
+
+    def _update_scaled_pixmap(self):
+        if self._source_pixmap.isNull() or self.width() <= 0:
+            return
+
+        max_width = max(1, self.width() - 24)
+        max_height = self.maximumHeight() - 10
+        scaled = self._source_pixmap.scaled(
+            max_width,
+            max_height,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self.setPixmap(scaled)
+        self.setFixedHeight(min(self.maximumHeight(), scaled.height() + 10))
 
 
 class WordIndexOverlay(QWidget):
@@ -2048,6 +2082,27 @@ class Notepad(QMainWindow):
     _recovery_succeeded = Signal(str)     # str = path written by the recovery worker
     _recovery_failed = Signal()           # recovery write failed (always silent)
 
+    @staticmethod
+    def _find_asset_path(filename: str) -> Path:
+        candidates = []
+        try:
+            if getattr(sys, "frozen", False):
+                meipass = getattr(sys, "_MEIPASS", None)
+                if meipass:
+                    candidates.append(Path(meipass) / "assets" / filename)
+                candidates.append(Path(sys.executable).resolve().parent / "assets" / filename)
+            candidates.append(Path(__file__).resolve().parent / "assets" / filename)
+        except Exception:
+            candidates.append(Path.cwd() / "assets" / filename)
+
+        for path in candidates:
+            try:
+                if path.exists():
+                    return path
+            except Exception:
+                pass
+        return candidates[-1]
+
     def __init__(self, initial_file: Optional[str] = None, restore_last_session: bool = True):
         super().__init__()
         self.setWindowTitle("Untitled - Neight")
@@ -2062,7 +2117,19 @@ class Notepad(QMainWindow):
         self._last_session_file = None
 
         self.editor = CodeEditor(self)
-        self.setCentralWidget(self.editor)
+
+        central = QWidget(self)
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+
+        self.keyboard_guide = TamilKeyboardGuide(
+            self._find_asset_path("Tamil keyboard UPDATED.png"),
+            central,
+        )
+        central_layout.addWidget(self.keyboard_guide)
+        central_layout.addWidget(self.editor, 1)
+        self.setCentralWidget(central)
 
         self.status = QStatusBar(self)
         self.setStatusBar(self.status)
