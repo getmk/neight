@@ -33,6 +33,8 @@ DEFAULT_SORKUVAI_SEARCH_URL_PREFIX = "https://sorkuvai.tn.gov.in/?q="
 # Also strips ASCII control characters (0x00–0x1f).
 _FILENAME_ILLEGAL_RE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
+# Suppress the DirectWrite legacy font warning logs
+os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.qpa.fonts.warning=false"
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QPlainTextEdit, QFileDialog, QMessageBox,
